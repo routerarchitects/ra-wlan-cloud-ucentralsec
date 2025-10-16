@@ -58,5 +58,19 @@
     });
 
 </script>
+<script>
+  window.onload = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const id = urlParams.get('id');
+    if (id) {
+      const hiddenInput = document.createElement('input');
+      hiddenInput.type = 'hidden';
+      hiddenInput.name = 'id';
+      hiddenInput.value = id;
+      document.querySelector('form').appendChild(hiddenInput);
+    }
+  };
+</script>
+
 </body>
 </html>

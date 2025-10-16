@@ -179,6 +179,22 @@ namespace OpenWifi {
 				for (const auto &format : {"txt", "html"}) {
 					std::string Content =
 						Utils::LoadFile(TemplateDir_ + Msg.TemplateName + "." + format);
+
+					/*
+						Fallback: if the brand/tenant-specific template (e.g., "/00001/sub_signup_verification.html")
+						is missing, load the non-branded template with the same basename ("/sub_signup_verification.html").
+						This avoids sending empty emails when a brand key is present but no brand-specific template exists.
+						We find the slash after the leading "/" (secondSlash) to strip the brand prefix while keeping the
+						leading "/" so the rest of the path remains valid.
+					*/
+					if (Content.empty()) {
+						auto secondSlash = Msg.TemplateName.find('/', 1);
+						if (secondSlash != std::string::npos) {
+							std::string noBrand = Msg.TemplateName.substr(secondSlash); // "/sub_signup_verification"
+							Content = Utils::LoadFile(TemplateDir_ + noBrand + "." + format);
+						}
+					}
+
 					Types::StringPairVec Variables;
 					FillVariables(Msg.Attrs, Variables);
 					Utils::ReplaceVariables(Content, Variables);
