@@ -176,9 +176,53 @@ namespace OpenWifi {
 				std::string Content = Msg.Attrs.find(TEXT)->second;
 				Message->addContent(new Poco::Net::StringPartSource(Content));
 			} else {
-				for (const auto &format : {"txt", "html"}) {
+				for (const auto &format : {"html"}) {
 					std::string Content =
 						Utils::LoadFile(TemplateDir_ + Msg.TemplateName + "." + format);
+					poco_information(
+						Logger(),
+						fmt::format("Loading template file: {}{}.{}", TemplateDir_,
+									Msg.TemplateName, format));
+
+					/*
+					 Purpose:
+					   Determine the correct template file to load for subscriber-related messages.
+					   Each operator (identified by its registrationId) may have customized templates.
+					   If an operator-specific template is not found, the system falls back to the
+					   global default version of sub_signup_verification template.
+
+					 Resolution logic:
+					   1. Operator-specific (registrationId) template:
+					        <TemplateDir_>/<registrationId>/<TemplateName>.html
+					        Example:
+					          owsec_data/templates/airtel-up-west-201304/sub_signup_verification.html
+
+					   2. Default fallback template (no registrationId prefix):
+					        <TemplateDir_>/<TemplateName>.html
+					        Example:
+					          owsec_data/templates/sub_signup_verification.html
+
+					 Details:
+					   - TemplateDir_ points to the base directory "owsec_data/templates".
+					   - Msg.TemplateName is the registrationId prefixed template name,
+					     for example: "airtel-up-west-201304/sub_signup_verification".
+					   - When Msg.TemplateName files are missing, default template will be used.
+					   - This ensures that email generation does not fail even when a custom
+					     template for a specific operator is unavailable.
+					*/
+					if (Content.empty()) {
+						auto secondSlash = Msg.TemplateName.find('/', 1);
+						if (secondSlash != std::string::npos) {
+							std::string noBrand = Msg.TemplateName.substr(secondSlash); // "/sub_signup_verification"
+							Content = Utils::LoadFile(TemplateDir_ + noBrand + "." + format);
+							poco_information(
+								Logger(),
+								fmt::format("Operator-specific template file {}{}.{} not found. Falling back to default template: {}{}.{}",
+											TemplateDir_, Msg.TemplateName, format, TemplateDir_,
+											noBrand, format));
+						}
+					}
+
 					Types::StringPairVec Variables;
 					FillVariables(Msg.Attrs, Variables);
 					Utils::ReplaceVariables(Content, Variables);
