@@ -205,7 +205,7 @@ namespace OpenWifi::RESTAPI::Errors {
 	static const struct msg TOTInvalidProtocol { 1089, "Invalid protocol sequence." };
 	static const struct msg TOTNoSession { 1090, "No validation session present." };
 
-	static const struct msg SignupAlreadySigned { 1091, "Code is repeated. Must be new code." };
+	static const struct msg SignupAlreadySigned { 1091, "User already signed up." };
 	static const struct msg SignupEmailCheck { 1092, "Waiting for email check completion." };
 	static const struct msg SignupWaitingForDevice { 1093, "Waiting for device." };
 
