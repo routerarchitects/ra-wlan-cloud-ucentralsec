@@ -34,7 +34,6 @@ namespace OpenWifi {
 			if (NewSub.waitingForEmailCheck == false) {
 				return BadRequest(RESTAPI::Errors::SignupAlreadySigned);
 			} else if (resend == true) {
-				NewSub.modified = OpenWifi::Now();
 				StorageService()->SubDB().UpdateUserInfo(NewSub.email, NewSub.id, NewSub);
 			} else {
 				return BadRequest(RESTAPI::Errors::SignupEmailCheck);
