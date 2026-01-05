@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0 OR LicenseRef-Commercial
+ * Copyright (c) 2025 Infernet Systems Pvt Ltd
+ * Portions copyright (c) Telecom Infra Project (TIP), BSD-3-Clause
+ */
 //
 // Created by stephane bourque on 2022-02-21.
 //
@@ -205,7 +210,7 @@ namespace OpenWifi::RESTAPI::Errors {
 	static const struct msg TOTInvalidProtocol { 1089, "Invalid protocol sequence." };
 	static const struct msg TOTNoSession { 1090, "No validation session present." };
 
-	static const struct msg SignupAlreadySigned { 1091, "Code is repeated. Must be new code." };
+	static const struct msg SignupAlreadySigned { 1091, "User already signed up." };
 	static const struct msg SignupEmailCheck { 1092, "Waiting for email check completion." };
 	static const struct msg SignupWaitingForDevice { 1093, "Waiting for device." };
 

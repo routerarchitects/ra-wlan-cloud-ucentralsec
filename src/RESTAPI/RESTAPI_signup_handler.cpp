@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0 OR LicenseRef-Commercial
+ * Copyright (c) 2025 Infernet Systems Pvt Ltd
+ * Portions copyright (c) Telecom Infra Project (TIP), BSD-3-Clause
+ */
 //
 // Created by stephane bourque on 2022-02-20.
 //
@@ -10,11 +15,13 @@
 #define __DBG__ std::cout << __LINE__ << std::endl;
 namespace OpenWifi {
 
+
 	void RESTAPI_signup_handler::DoPost() {
 		auto UserName = GetParameter("email");
 		auto signupUUID = GetParameter("signupUUID");
 		auto owner = GetParameter("owner");
 		auto operatorName = GetParameter("operatorName");
+		auto resend = GetBoolParameter("resend", false);
 		if (UserName.empty() || signupUUID.empty() || owner.empty() || operatorName.empty()) {
 			Logger().error("Signup requires: email, signupUUID, operatorName, and owner.");
 			return BadRequest(RESTAPI::Errors::MissingOrInvalidParameters);
@@ -23,39 +30,35 @@ namespace OpenWifi {
 		if (!Utils::ValidEMailAddress(UserName)) {
 			return BadRequest(RESTAPI::Errors::InvalidEmailAddress);
 		}
-
-		// Do we already exist? Can only signup once...
-		SecurityObjects::UserInfo Existing;
-		if (StorageService()->SubDB().GetUserByEmail(UserName, Existing)) {
-			if (Existing.signingUp.empty()) {
-				return BadRequest(RESTAPI::Errors::SignupAlreadySigned);
-			}
-
-			if (Existing.waitingForEmailCheck) {
-				return BadRequest(RESTAPI::Errors::SignupEmailCheck);
-			}
-
-			return BadRequest(RESTAPI::Errors::SignupWaitingForDevice);
-		}
+		Logger_.information(fmt::format("SIGNUP-REQUEST({}): Signup request for {}", Request->clientAddress().toString(),UserName));
 
 		SecurityObjects::UserInfo NewSub;
-		NewSub.signingUp = operatorName + ":" + signupUUID;
-		NewSub.waitingForEmailCheck = true;
-		NewSub.name = UserName;
-		NewSub.modified = OpenWifi::Now();
-		NewSub.creationDate = OpenWifi::Now();
-		NewSub.id = MicroServiceCreateUUID();
-		NewSub.email = UserName;
-		NewSub.userRole = SecurityObjects::SUBSCRIBER;
-		NewSub.changePassword = true;
-		NewSub.owner = owner;
+		bool ExistingUser = StorageService()->SubDB().GetUserByEmail(UserName, NewSub);
 
-		StorageService()->SubDB().CreateRecord(NewSub);
+		if (ExistingUser) {
+			if (NewSub.waitingForEmailCheck == false) {
+				return BadRequest(RESTAPI::Errors::SignupAlreadySigned);
+			} else if (resend == true) {
+				StorageService()->SubDB().UpdateUserInfo(NewSub.email, NewSub.id, NewSub);
+			} else {
+				return BadRequest(RESTAPI::Errors::SignupEmailCheck);
+			}
+		} else {
+			// first time signup: create the subscriber
+			NewSub.signingUp = operatorName + ":" + signupUUID;
+			NewSub.waitingForEmailCheck = true;
+			NewSub.name = UserName;
+			NewSub.modified = OpenWifi::Now();
+			NewSub.creationDate = OpenWifi::Now();
+			NewSub.id = MicroServiceCreateUUID();
+			NewSub.email = UserName;
+			NewSub.userRole = SecurityObjects::SUBSCRIBER;
+			NewSub.changePassword = true;
+			NewSub.owner = owner;
+			StorageService()->SubDB().CreateRecord(NewSub);
+		}
 
-		Logger_.information(fmt::format("SIGNUP-PASSWORD({}): Request for {}",
-										Request->clientAddress().toString(), UserName));
 		SecurityObjects::ActionLink NewLink;
-
 		NewLink.action = OpenWifi::SecurityObjects::LinkActions::SUB_SIGNUP;
 		NewLink.id = MicroServiceCreateUUID();
 		NewLink.userId = NewSub.id;
