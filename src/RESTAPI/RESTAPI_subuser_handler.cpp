@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0 OR LicenseRef-Commercial
+ * Copyright (c) 2025 Infernet Systems Pvt Ltd
+ * Portions copyright (c) Telecom Infra Project (TIP), BSD-3-Clause
+ */
 //
 // Created by stephane bourque on 2021-11-30.
 //
@@ -14,7 +19,10 @@
 #include "framework/ow_constants.h"
 
 #include "framework/MicroServiceFuncs.h"
-
+#ifdef CGW_INTEGRATION
+#include "framework/KafkaManager.h"
+#include "framework/KafkaTopics.h"
+#endif
 namespace OpenWifi {
 
 	void RESTAPI_subuser_handler::DoGet() {
@@ -71,6 +79,20 @@ namespace OpenWifi {
 		Logger_.information(
 			fmt::format("User '{}' deleted by '{}'.", Id, UserInfo_.userinfo.email));
 		OK();
+		/* Check KAFKA is enabled or not
+		*  Format json msg and publish on KAFKA
+		*/
+#ifdef CGW_INTEGRATION
+		if (KafkaManager()->Enabled()) {
+			Poco::JSON::Object Msg;
+			Msg.set("type", "infrastructure_subscriber_delete");
+			Msg.set("subscriberid", Id);
+			KafkaManager()->PostMessage(KafkaTopics::SUBSCRIBER_EVENT,
+										MicroServicePrivateEndPoint(), Msg, false);
+			Logger_.information(fmt::format("Message Published for subscriberId {}",Id));
+
+		}
+#endif
 	}
 
 	void RESTAPI_subuser_handler::DoPost() {
@@ -143,6 +165,19 @@ namespace OpenWifi {
 		ReturnObject(UserInfoObject);
 		Logger_.information(fmt::format("User '{}' has been added by '{}')", NewUser.email,
 										UserInfo_.userinfo.email));
+		/* Check KAFKA is enabled or not
+		*  Format json msg and publish on KAFKA
+		*/
+#ifdef CGW_INTEGRATION
+		if (KafkaManager()->Enabled()) {
+			Poco::JSON::Object Msg;
+			Msg.set("type", "infrastructure_subscriber_create");
+			Msg.set("subscriberid", NewUser.id);
+			KafkaManager()->PostMessage(KafkaTopics::SUBSCRIBER_EVENT,
+										MicroServicePrivateEndPoint(), Msg, false);
+			Logger_.information(fmt::format("Message Published for subscriber {}",NewUser.email));
+		}
+#endif
 	}
 
 	void RESTAPI_subuser_handler::DoPut() {
