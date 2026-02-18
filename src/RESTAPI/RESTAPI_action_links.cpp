@@ -273,7 +273,7 @@ namespace OpenWifi {
 			auto RawSignup = Poco::StringTokenizer(UInfo.signingUp, ":");
 			Body.set("signupUUID", RawSignup.count() == 1 ? UInfo.signingUp : RawSignup[1]);
 			OpenAPIRequestPut ProvRequest(
-				uSERVICE_PROVISIONING, "/api/v1/signup",
+				uSERVICE_PROVISIONING, "/api/v1/subscriber",
 				{{"signupUUID", RawSignup.count() == 1 ? UInfo.signingUp : RawSignup[1]},
 				 {"operation", "emailVerified"}},
 				Body, 30000);
