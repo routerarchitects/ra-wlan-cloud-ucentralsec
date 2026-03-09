@@ -40,8 +40,6 @@ namespace OpenWifi {
 				return BadRequest(RESTAPI::Errors::SignupAlreadySigned);
 			} else if (resend == true) {
 				StorageService()->SubDB().UpdateUserInfo(NewSub.email, NewSub.id, NewSub);
-			} else {
-				return BadRequest(RESTAPI::Errors::SignupEmailCheck);
 			}
 		} else {
 			// first time signup: create the subscriber
