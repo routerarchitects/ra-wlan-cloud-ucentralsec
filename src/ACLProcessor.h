@@ -23,6 +23,28 @@ namespace OpenWifi {
 		 admin-subs-csr-installer-noc-accounting ACCOUNTING -> subs-installer-csr
 
 		 */
+		static inline bool IsRoot(const SecurityObjects::UserInfo &User) {
+			return User.userRole == SecurityObjects::ROOT;
+		}
+
+		static inline bool IsAdmin(const SecurityObjects::UserInfo &User) {
+			return User.userRole == SecurityObjects::ADMIN;
+		}
+
+		static inline bool IsSelf(const SecurityObjects::UserInfo &User,
+								  const SecurityObjects::UserInfo &Target) {
+			return User.id == Target.id;
+		}
+
+		static inline bool WasCreatedBy(const SecurityObjects::UserInfo &User,
+										const SecurityObjects::UserInfo &Target) {
+			return !Target.createdBy.empty() && Target.createdBy == User.id;
+		}
+
+		static inline bool IsNonRootTarget(const SecurityObjects::UserInfo &Target) {
+			return Target.userRole != SecurityObjects::ROOT;
+		}
+
 		static inline bool Can(const SecurityObjects::UserInfo &User,
 							   const SecurityObjects::UserInfo &Target, ACL_OPS Op) {
 
@@ -122,6 +144,101 @@ namespace OpenWifi {
 			default:
 				return false;
 			}
+		}
+
+		static inline bool CanReadUserRecord(const SecurityObjects::UserInfo &User,
+											const SecurityObjects::UserInfo &Target) {
+			if (IsRoot(User)) {
+				return true;
+			}
+
+			if (IsSelf(User, Target) && IsNonRootTarget(Target)) {
+				return true;
+			}
+
+			if (!IsAdmin(User)) {
+				return false;
+			}
+
+			return WasCreatedBy(User, Target);
+		}
+
+		static inline bool CanCreateUserRecord(const SecurityObjects::UserInfo &User,
+											   const SecurityObjects::UserInfo &Target) {
+			if (IsRoot(User)) {
+				return true;
+			}
+			if (!IsAdmin(User)) {
+				return false;
+			}
+			return IsNonRootTarget(Target) && Target.userRole != SecurityObjects::PARTNER;
+		}
+
+		static inline bool CanDeleteUserRecord(const SecurityObjects::UserInfo &User,
+											   const SecurityObjects::UserInfo &Target) {
+			if (IsSelf(User, Target)) {
+				return false;
+			}
+
+			if (IsRoot(User)) {
+				return true;
+			}
+
+			if (!IsAdmin(User)) {
+				return false;
+			}
+
+			return WasCreatedBy(User, Target) && IsNonRootTarget(Target);
+		}
+
+		static inline bool CanModifyUserRecord(const SecurityObjects::UserInfo &User,
+											   const SecurityObjects::UserInfo &Target) {
+			if (IsRoot(User)) {
+				return true;
+			}
+
+			if (IsSelf(User, Target)) {
+				return IsNonRootTarget(Target);
+			}
+
+			if (!IsAdmin(User)) {
+				return false;
+			}
+
+			return IsNonRootTarget(Target) && WasCreatedBy(User, Target);
+		}
+
+		static inline bool CanResetUserMFA(const SecurityObjects::UserInfo &User,
+										   const SecurityObjects::UserInfo &Target) {
+			if (IsRoot(User)) {
+				return true;
+			}
+
+			if (IsSelf(User, Target)) {
+				return IsNonRootTarget(Target);
+			}
+
+			if (!IsAdmin(User)) {
+				return false;
+			}
+
+			return IsNonRootTarget(Target) && WasCreatedBy(User, Target);
+		}
+
+		static inline bool CanChangeUserRole(const SecurityObjects::UserInfo &User,
+											 const SecurityObjects::UserInfo &Target,
+											 SecurityObjects::USER_ROLE NewRole) {
+			if (IsSelf(User, Target)) {
+				return false;
+			}
+			if (IsRoot(User)) {
+				return true;
+			}
+			if (!IsAdmin(User)) {
+				return false;
+			}
+			return NewRole != SecurityObjects::ROOT && IsNonRootTarget(Target) &&
+				   WasCreatedBy(User, Target);
 		}
 
 	  private:

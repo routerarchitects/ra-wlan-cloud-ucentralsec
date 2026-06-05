@@ -19,3 +19,5 @@ _deps
 /cmake-build/
 /smake-build-debug/
 test_scripts/curl/result.json
+tests/integration/test_results.csv
+tests/integration/.env

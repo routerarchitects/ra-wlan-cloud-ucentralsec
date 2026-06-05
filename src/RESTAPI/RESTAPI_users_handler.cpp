@@ -3,14 +3,27 @@
 //
 
 #include "RESTAPI_users_handler.h"
+#include "ACLProcessor.h"
 #include "RESTAPI/RESTAPI_db_helpers.h"
 #include "StorageService.h"
 
 namespace OpenWifi {
+
+	namespace {
+		inline bool IsAdminUserCaller(const SecurityObjects::UserInfo &User) {
+			return User.userRole == SecurityObjects::ROOT || User.userRole == SecurityObjects::ADMIN;
+		}
+	}
+
 	void RESTAPI_users_handler::DoGet() {
+
 		bool IdOnly = (GetParameter("idOnly", "false") == "true");
 		auto nameSearch = GetParameter("nameSearch");
 		auto emailSearch = GetParameter("emailSearch");
+
+		if (!IsAdminUserCaller(UserInfo_.userinfo)) {
+			return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
+		}
 
 		std::string baseQuery;
 		if (!nameSearch.empty() || !emailSearch.empty()) {
@@ -23,6 +36,11 @@ namespace OpenWifi {
 											   ORM::Escape(Poco::toLower(emailSearch)))
 								 : fmt::format(" and Lower(email) like('%{}%') ",
 											   ORM::Escape(Poco::toLower(emailSearch)));
+		}
+
+		if (UserInfo_.userinfo.userRole == SecurityObjects::ADMIN) {
+			auto AdminScope = fmt::format(" createdby='{}' ", ORM::Escape(UserInfo_.userinfo.id));
+			baseQuery = baseQuery.empty() ? AdminScope : fmt::format("{} and {}", AdminScope, baseQuery);
 		}
 
 		if (QB_.Select.empty()) {
@@ -49,7 +67,9 @@ namespace OpenWifi {
 			for (auto &i : SelectedRecords()) {
 				SecurityObjects::UserInfo UInfo;
 				if (StorageService()->UserDB().GetUserById(i, UInfo)) {
-					Poco::JSON::Object Obj;
+					if (!ACLProcessor::CanReadUserRecord(UserInfo_.userinfo, UInfo)) {
+						continue;
+					}
 					Sanitize(UserInfo_, UInfo);
 					Users.users.emplace_back(UInfo);
 				}

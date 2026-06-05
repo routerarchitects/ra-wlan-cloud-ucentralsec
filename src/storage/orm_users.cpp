@@ -67,6 +67,7 @@ namespace OpenWifi {
 		ORM::Field{"notes", ORM::FieldType::FT_TEXT},
 		ORM::Field{"location", ORM::FieldType::FT_TEXT},
 		ORM::Field{"owner", ORM::FieldType::FT_TEXT},
+		ORM::Field{"createdBy", ORM::FieldType::FT_TEXT},
 		ORM::Field{"suspended", ORM::FieldType::FT_BOOLEAN},
 		ORM::Field{"blackListed", ORM::FieldType::FT_BOOLEAN},
 		ORM::Field{"userRole", ORM::FieldType::FT_TEXT},
@@ -84,7 +85,9 @@ namespace OpenWifi {
 		return ORM::IndexVec{{std::string(shortname + "_user_email_index"),
 							  ORM::IndexEntryVec{{std::string("email"), ORM::Indextype::ASC}}},
 							 {std::string(shortname + "_user_name_index"),
-							  ORM::IndexEntryVec{{std::string("name"), ORM::Indextype::ASC}}}};
+							  ORM::IndexEntryVec{{std::string("name"), ORM::Indextype::ASC}}},
+							 {std::string(shortname + "_user_createdby_index"),
+							  ORM::IndexEntryVec{{std::string("createdBy"), ORM::Indextype::ASC}}}};
 	}
 
 	BaseUserDB::BaseUserDB(const std::string &Name, const std::string &ShortName,
@@ -95,9 +98,18 @@ namespace OpenWifi {
 		  UsersOnly_(Users) {}
 
 	bool BaseUserDB::Upgrade([[maybe_unused]] uint32_t from, uint32_t &to) {
-		std::vector<std::string> Statements{
-			"alter table " + TableName_ + " add column modified BIGINT;",
-			"alter table " + TableName_ + " add column signingUp TEXT default '';"};
+		std::vector<std::string> Statements;
+		if (from < 2) {
+			Statements.emplace_back("alter table " + TableName_ + " add column modified BIGINT;");
+			Statements.emplace_back("alter table " + TableName_ + " add column signingUp TEXT default '';");
+		}
+		if (from < 3) {
+			Statements.emplace_back(
+				"alter table " + TableName_ + " add column createdby TEXT default '';");
+			Statements.emplace_back("create index if not exists " + Prefix() +
+								   "_user_createdby_index on " + TableName_ +
+								   " ( createdby asc )");
+		}
 		RunScript(Statements);
 		to = CurrentVersion;
 		return true;
@@ -311,20 +323,21 @@ void ORM::DB<OpenWifi::UserInfoRecordTuple, OpenWifi::SecurityObjects::UserInfo>
 		OpenWifi::RESTAPI_utils::to_object_array<OpenWifi::SecurityObjects::NoteInfo>(T.get<17>());
 	U.location = T.get<18>();
 	U.owner = T.get<19>();
-	U.suspended = T.get<20>();
-	U.blackListed = T.get<21>();
-	U.userRole = OpenWifi::SecurityObjects::UserTypeFromString(T.get<22>());
+	U.createdBy = T.get<20>();
+	U.suspended = T.get<21>();
+	U.blackListed = T.get<22>();
+	U.userRole = OpenWifi::SecurityObjects::UserTypeFromString(T.get<23>());
 	U.userTypeProprietaryInfo =
 		OpenWifi::RESTAPI_utils::to_object<OpenWifi::SecurityObjects::UserLoginLoginExtensions>(
-			T.get<23>());
-	U.securityPolicy = T.get<24>();
-	U.securityPolicyChange = T.get<25>();
-	U.currentPassword = T.get<26>();
-	U.lastPasswords = OpenWifi::RESTAPI_utils::to_object_array(T.get<27>());
-	U.oauthType = T.get<28>();
-	U.oauthUserInfo = T.get<29>();
-	U.modified = T.get<30>();
-	U.signingUp = T.get<31>();
+			T.get<24>());
+	U.securityPolicy = T.get<25>();
+	U.securityPolicyChange = T.get<26>();
+	U.currentPassword = T.get<27>();
+	U.lastPasswords = OpenWifi::RESTAPI_utils::to_object_array(T.get<28>());
+	U.oauthType = T.get<29>();
+	U.oauthUserInfo = T.get<30>();
+	U.modified = T.get<31>();
+	U.signingUp = T.get<32>();
 }
 
 template <>
@@ -350,16 +363,17 @@ void ORM::DB<OpenWifi::UserInfoRecordTuple, OpenWifi::SecurityObjects::UserInfo>
 	T.set<17>(OpenWifi::RESTAPI_utils::to_string(U.notes));
 	T.set<18>(U.location);
 	T.set<19>(U.owner);
-	T.set<20>(U.suspended);
-	T.set<21>(U.blackListed);
-	T.set<22>(OpenWifi::SecurityObjects::UserTypeToString(U.userRole));
-	T.set<23>(OpenWifi::RESTAPI_utils::to_string(U.userTypeProprietaryInfo));
-	T.set<24>(U.securityPolicy);
-	T.set<25>(U.securityPolicyChange);
-	T.set<26>(U.currentPassword);
-	T.set<27>(OpenWifi::RESTAPI_utils::to_string(U.lastPasswords));
-	T.set<28>(U.oauthType);
-	T.set<29>(U.oauthUserInfo);
-	T.set<30>(U.modified);
-	T.set<31>(U.signingUp);
+	T.set<20>(U.createdBy);
+	T.set<21>(U.suspended);
+	T.set<22>(U.blackListed);
+	T.set<23>(OpenWifi::SecurityObjects::UserTypeToString(U.userRole));
+	T.set<24>(OpenWifi::RESTAPI_utils::to_string(U.userTypeProprietaryInfo));
+	T.set<25>(U.securityPolicy);
+	T.set<26>(U.securityPolicyChange);
+	T.set<27>(U.currentPassword);
+	T.set<28>(OpenWifi::RESTAPI_utils::to_string(U.lastPasswords));
+	T.set<29>(U.oauthType);
+	T.set<30>(U.oauthUserInfo);
+	T.set<31>(U.modified);
+	T.set<32>(U.signingUp);
 }

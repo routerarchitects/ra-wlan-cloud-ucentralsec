@@ -31,6 +31,7 @@ namespace OpenWifi {
 						std::string, // notes;
 						std::string, // location;
 						std::string, // owner;
+						std::string, // createdBy;
 						bool,		 // bool suspended = false;
 						bool,		 // bool blackListed = false;
 						std::string, // userRole;
@@ -67,7 +68,7 @@ namespace OpenWifi {
 
 	class BaseUserDB : public ORM::DB<UserInfoRecordTuple, SecurityObjects::UserInfo> {
 	  public:
-		const uint32_t CurrentVersion = 2;
+		const uint32_t CurrentVersion = 3;
 		BaseUserDB(const std::string &name, const std::string &shortname, OpenWifi::DBType T,
 				   Poco::Data::SessionPool &P, Poco::Logger &L, UserCache *Cache, bool users);
 		virtual ~BaseUserDB() {}
