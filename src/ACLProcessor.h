@@ -12,17 +12,7 @@ namespace OpenWifi {
 	class ACLProcessor {
 	  public:
 		enum ACL_OPS { READ, MODIFY, DELETE, CREATE };
-		/*
-		 *  0) You can only delete yourself if you are a subscriber
-			1) You cannot delete yourself
-			2) If you are root, you can do anything.
-			3) You can do anything to yourself
-			4) Nobody can touch a root, unless they are a root, unless it is to get information on a
-		 ROOT 5) Creation rules: ROOT -> create anything PARTNER -> (multi-tenant owner)
-		 admin,subs,csr,installer,noc,accounting - matches to an entity in provisioning ADMIN ->
-		 admin-subs-csr-installer-noc-accounting ACCOUNTING -> subs-installer-csr
 
-		 */
 		static inline bool IsRoot(const SecurityObjects::UserInfo &User) {
 			return User.userRole == SecurityObjects::ROOT;
 		}
@@ -47,197 +37,63 @@ namespace OpenWifi {
 
 		static inline bool Can(const SecurityObjects::UserInfo &User,
 							   const SecurityObjects::UserInfo &Target, ACL_OPS Op) {
-
-			switch (Op) {
-			case DELETE: {
-				//  can a user delete themselves - yes - only if not root. We do not want a system
-				//  to end up rootless
-				if (User.id == Target.id) {
-					return User.userRole != SecurityObjects::ROOT;
-				}
-				//  Root can delete anyone
-				switch (User.userRole) {
-				case SecurityObjects::ROOT:
-					return true;
-				case SecurityObjects::ADMIN:
-					return Target.userRole != SecurityObjects::ROOT &&
-						   Target.userRole != SecurityObjects::PARTNER;
-				case SecurityObjects::SUBSCRIBER:
-					return User.id == Target.id;
-				case SecurityObjects::CSR:
-					return false;
-				case SecurityObjects::SYSTEM:
-					return Target.userRole != SecurityObjects::ROOT &&
-						   Target.userRole != SecurityObjects::PARTNER;
-				case SecurityObjects::INSTALLER:
-					return User.id == Target.id;
-				case SecurityObjects::NOC:
-					return Target.userRole == SecurityObjects::NOC;
-				case SecurityObjects::ACCOUNTING:
-					return Target.userRole == SecurityObjects::ACCOUNTING;
-				case SecurityObjects::PARTNER:
-					return Target.userRole != SecurityObjects::ROOT;
-				default:
-					return false;
-				}
-			} break;
-
-			case READ: {
+			if (Op == READ) {
 				return User.userRole == SecurityObjects::ROOT ||
 					   User.userRole == SecurityObjects::ADMIN ||
 					   User.userRole == SecurityObjects::PARTNER;
-			} break;
-
-			case CREATE: {
-				switch (User.userRole) {
-				case SecurityObjects::ROOT:
-					return true;
-				case SecurityObjects::ADMIN:
-					return Target.userRole != SecurityObjects::ROOT &&
-						   Target.userRole != SecurityObjects::PARTNER;
-				case SecurityObjects::SUBSCRIBER:
-					return false;
-				case SecurityObjects::CSR:
-					return Target.userRole == SecurityObjects::CSR;
-				case SecurityObjects::SYSTEM:
-					return Target.userRole != SecurityObjects::ROOT &&
-						   Target.userRole != SecurityObjects::PARTNER;
-				case SecurityObjects::INSTALLER:
-					return Target.userRole == SecurityObjects::INSTALLER;
-				case SecurityObjects::NOC:
-					return Target.userRole == SecurityObjects::NOC;
-				case SecurityObjects::ACCOUNTING:
-					return Target.userRole == SecurityObjects::ACCOUNTING;
-				case SecurityObjects::PARTNER:
-					return Target.userRole != SecurityObjects::ROOT;
-				default:
-					return false;
-				}
-			} break;
-
-			case MODIFY: {
-				switch (User.userRole) {
-				case SecurityObjects::ROOT:
-					return true;
-				case SecurityObjects::ADMIN:
-					return Target.userRole != SecurityObjects::ROOT &&
-						   Target.userRole != SecurityObjects::PARTNER;
-				case SecurityObjects::SUBSCRIBER:
-					return User.id == Target.id;
-				case SecurityObjects::CSR:
-					return Target.userRole == SecurityObjects::CSR;
-				case SecurityObjects::SYSTEM:
-					return Target.userRole != SecurityObjects::ROOT &&
-						   Target.userRole != SecurityObjects::PARTNER;
-				case SecurityObjects::INSTALLER:
-					return Target.userRole == SecurityObjects::INSTALLER;
-				case SecurityObjects::NOC:
-					return Target.userRole == SecurityObjects::NOC;
-				case SecurityObjects::ACCOUNTING:
-					return Target.userRole == SecurityObjects::ACCOUNTING;
-				case SecurityObjects::PARTNER:
-					return Target.userRole != SecurityObjects::ROOT;
-				default:
-					return false;
-				}
-			} break;
-			default:
-				return false;
 			}
+			if (User.id == Target.id) {
+				if (Op == DELETE) return User.userRole != SecurityObjects::ROOT;
+				return true;
+			}
+			if (User.userRole == SecurityObjects::ROOT) return true;
+			if (User.userRole == SecurityObjects::ADMIN || User.userRole == SecurityObjects::SYSTEM) {
+				return Target.userRole != SecurityObjects::ROOT && Target.userRole != SecurityObjects::PARTNER;
+			}
+			if (User.userRole == SecurityObjects::PARTNER) return Target.userRole != SecurityObjects::ROOT;
+			if (User.userRole == SecurityObjects::SUBSCRIBER) return false;
+			if (Op == DELETE && (User.userRole == SecurityObjects::CSR || User.userRole == SecurityObjects::INSTALLER)) return false;
+			return User.userRole == Target.userRole;
 		}
 
 		static inline bool CanReadUserRecord(const SecurityObjects::UserInfo &User,
 											const SecurityObjects::UserInfo &Target) {
-			if (IsRoot(User)) {
-				return true;
-			}
-
-			if (IsSelf(User, Target) && IsNonRootTarget(Target)) {
-				return true;
-			}
-
-			if (!IsAdmin(User)) {
-				return false;
-			}
-
-			return WasCreatedBy(User, Target);
+			if (IsRoot(User)) return true;
+			if (IsSelf(User, Target)) return IsNonRootTarget(Target);
+			return IsAdmin(User) && WasCreatedBy(User, Target);
 		}
 
 		static inline bool CanCreateUserRecord(const SecurityObjects::UserInfo &User,
 											   const SecurityObjects::UserInfo &Target) {
-			if (IsRoot(User)) {
-				return true;
-			}
-			if (!IsAdmin(User)) {
-				return false;
-			}
-			return IsNonRootTarget(Target) && Target.userRole != SecurityObjects::PARTNER;
+			if (IsRoot(User)) return true;
+			return IsAdmin(User) && IsNonRootTarget(Target) && Target.userRole != SecurityObjects::PARTNER;
 		}
 
 		static inline bool CanDeleteUserRecord(const SecurityObjects::UserInfo &User,
 											   const SecurityObjects::UserInfo &Target) {
-			if (IsSelf(User, Target)) {
-				return false;
-			}
-
-			if (IsRoot(User)) {
-				return true;
-			}
-
-			if (!IsAdmin(User)) {
-				return false;
-			}
-
-			return WasCreatedBy(User, Target) && IsNonRootTarget(Target);
+			if (IsSelf(User, Target)) return false;
+			if (IsRoot(User)) return true;
+			return IsAdmin(User) && WasCreatedBy(User, Target) && IsNonRootTarget(Target);
 		}
 
 		static inline bool CanModifyUserRecord(const SecurityObjects::UserInfo &User,
 											   const SecurityObjects::UserInfo &Target) {
-			if (IsRoot(User)) {
-				return true;
-			}
-
-			if (IsSelf(User, Target)) {
-				return IsNonRootTarget(Target);
-			}
-
-			if (!IsAdmin(User)) {
-				return false;
-			}
-
-			return IsNonRootTarget(Target) && WasCreatedBy(User, Target);
+			if (IsRoot(User)) return true;
+			if (IsSelf(User, Target)) return IsNonRootTarget(Target);
+			return IsAdmin(User) && IsNonRootTarget(Target) && WasCreatedBy(User, Target);
 		}
 
 		static inline bool CanResetUserMFA(const SecurityObjects::UserInfo &User,
 										   const SecurityObjects::UserInfo &Target) {
-			if (IsRoot(User)) {
-				return true;
-			}
-
-			if (IsSelf(User, Target)) {
-				return IsNonRootTarget(Target);
-			}
-
-			if (!IsAdmin(User)) {
-				return false;
-			}
-
-			return IsNonRootTarget(Target) && WasCreatedBy(User, Target);
+			return CanModifyUserRecord(User, Target);
 		}
 
 		static inline bool CanChangeUserRole(const SecurityObjects::UserInfo &User,
 											 const SecurityObjects::UserInfo &Target,
 											 SecurityObjects::USER_ROLE NewRole) {
-			if (IsSelf(User, Target)) {
-				return false;
-			}
-			if (IsRoot(User)) {
-				return true;
-			}
-			if (!IsAdmin(User)) {
-				return false;
-			}
-			return NewRole != SecurityObjects::ROOT && IsNonRootTarget(Target) &&
+			if (IsSelf(User, Target)) return false;
+			if (IsRoot(User)) return true;
+			return IsAdmin(User) && NewRole != SecurityObjects::ROOT && IsNonRootTarget(Target) &&
 				   WasCreatedBy(User, Target);
 		}
 
