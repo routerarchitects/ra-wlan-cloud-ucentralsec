@@ -53,25 +53,33 @@ RUN cmake ..
 RUN cmake --build . --config Release -j8
 RUN cmake --build . --target install
 
+FROM build-base AS vcpkg-build
+
+ARG VCPKG_VERSION=2022.11.14
+RUN git clone --depth 1 --branch ${VCPKG_VERSION} https://github.com/microsoft/vcpkg /vcpkg && \
+    /vcpkg/bootstrap-vcpkg.sh
+
+ADD overlays /vcpkg/overlays
+
+RUN mkdir /vcpkg/custom-triplets && \
+    cp /vcpkg/triplets/x64-linux.cmake /vcpkg/custom-triplets/x64-linux.cmake && \
+    sed -i 's/set(VCPKG_LIBRARY.*/set(VCPKG_LIBRARY_LINKAGE dynamic)/g' /vcpkg/custom-triplets/x64-linux.cmake && \
+    /vcpkg/vcpkg install aws-sdk-cpp[sns]:x64-linux json-schema-validator:x64-linux --overlay-triplets=/vcpkg/custom-triplets --overlay-ports=/vcpkg/overlays
+
 FROM build-base AS owsec-build
+
+COPY --from=vcpkg-build /vcpkg /vcpkg
+
+COPY --from=poco-build /usr/local/include /usr/local/include
+COPY --from=poco-build /usr/local/lib /usr/local/lib
+COPY --from=cppkafka-build /usr/local/include /usr/local/include
+COPY --from=cppkafka-build /usr/local/lib /usr/local/lib
 
 ADD CMakeLists.txt build /owsec/
 ADD overlays /owsec/overlays
 ADD cmake /owsec/cmake
 ADD src /owsec/src
 ADD .git /owsec/.git
-ARG VCPKG_VERSION=2022.11.14
-RUN git clone --depth 1 --branch ${VCPKG_VERSION} https://github.com/microsoft/vcpkg && \
-    ./vcpkg/bootstrap-vcpkg.sh && \
-    mkdir /vcpkg/custom-triplets && \
-    cp /vcpkg/triplets/x64-linux.cmake /vcpkg/custom-triplets/x64-linux.cmake && \
-    sed -i 's/set(VCPKG_LIBRARY.*/set(VCPKG_LIBRARY_LINKAGE dynamic)/g' /vcpkg/custom-triplets/x64-linux.cmake && \
-    ./vcpkg/vcpkg install aws-sdk-cpp[sns]:x64-linux json-schema-validator:x64-linux --overlay-triplets=/vcpkg/custom-triplets --overlay-ports=/owsec/overlays
-
-COPY --from=poco-build /usr/local/include /usr/local/include
-COPY --from=poco-build /usr/local/lib /usr/local/lib
-COPY --from=cppkafka-build /usr/local/include /usr/local/include
-COPY --from=cppkafka-build /usr/local/lib /usr/local/lib
 
 WORKDIR /owsec
 RUN mkdir cmake-build

@@ -24,9 +24,14 @@ namespace OpenWifi {
 		}
 
 		Poco::toLowerInPlace(Id);
-		std::string Arg;
 		SecurityObjects::UserInfo UInfo;
-		if (HasParameter("byEmail", Arg) && Arg == "true") {
+		bool byEmail = false;
+		std::string byEmailVal;
+		if (HasParameter("byEmail", byEmailVal)) {
+			byEmail = is_bool(byEmailVal) ? GetBoolParameter("byEmail")
+										  : (byEmailVal.empty() || byEmailVal == "true");
+		}
+		if (byEmail) {
 			if (!StorageService()->SubDB().GetUserByEmail(Id, UInfo)) {
 				return NotFound();
 			}
@@ -105,6 +110,14 @@ namespace OpenWifi {
 			return BadRequest(RESTAPI::Errors::InvalidEmailAddress);
 		}
 
+		bool email_verification = true;
+		RESTAPI_utils::field_from_json(RawObject, "emailValidation", email_verification);
+		std::string emailVal;
+		if (HasParameter("email_verification", emailVal)) {
+			email_verification = is_bool(emailVal) ? GetBoolParameter("email_verification")
+												   : (emailVal.empty() || emailVal == "true");
+		}
+
 		if (!NewUser.currentPassword.empty()) {
 			if (!AuthService()->ValidateSubPassword(NewUser.currentPassword)) {
 				return BadRequest(RESTAPI::Errors::InvalidPassword);
@@ -124,8 +137,7 @@ namespace OpenWifi {
 			Logger_.information(fmt::format("Could not add user '{}'.", NewUser.email));
 			return BadRequest(RESTAPI::Errors::RecordNotCreated);
 		}
-
-		if (GetParameter("email_verification", "false") == "true") {
+		if (email_verification) {
 			if (AuthService::VerifySubEmail(NewUser))
 				Logger_.information(
 					fmt::format("Verification e-mail requested for {}", NewUser.email));
@@ -263,7 +275,13 @@ namespace OpenWifi {
 			}
 		}
 
-		if (GetParameter("email_verification", "false") == "true") {
+		bool email_verification = false;
+		std::string emailVal;
+		if (HasParameter("email_verification", emailVal)) {
+			email_verification = is_bool(emailVal) ? GetBoolParameter("email_verification")
+												   : (emailVal.empty() || emailVal == "true");
+		}
+		if (email_verification) {
 			if (AuthService::VerifySubEmail(Existing))
 				Logger_.information(
 					fmt::format("Verification e-mail requested for {}", Existing.email));

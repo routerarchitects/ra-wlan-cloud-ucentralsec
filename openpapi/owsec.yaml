@@ -1182,6 +1182,7 @@ paths:
           name: email_verification
           schema:
             type: boolean
+            default: true
           required: false
       requestBody:
         description: User details (some fields are ignored during creation)
@@ -1213,6 +1214,7 @@ paths:
           name: email_verification
           schema:
             type: boolean
+            default: true
           required: false
         - in: query
           name: forgotPassword
@@ -1304,6 +1306,7 @@ paths:
           name: email_verification
           schema:
             type: boolean
+            default: true
           required: false
       requestBody:
         description: User details (some fields are ignored during creation)
@@ -1335,6 +1338,7 @@ paths:
           name: email_verification
           schema:
             type: boolean
+            default: true
           required: false
         - in: query
           name: forgotPassword
