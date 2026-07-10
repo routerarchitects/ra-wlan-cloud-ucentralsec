@@ -36,15 +36,18 @@ namespace OpenWifi {
 		}
 
 		inline bool IsAllowedSelfServiceField(const std::string &Field) {
-			static constexpr std::array<const char *, 7> AllowedFields{
-				"name", "description", "location", "locale", "changePassword",
-				"currentPassword", "userTypeProprietaryInfo"};
+			static constexpr std::array<const char *, 7> AllowedFields{"name",
+																	   "description",
+																	   "location",
+																	   "locale",
+																	   "changePassword",
+																	   "currentPassword",
+																	   "userTypeProprietaryInfo"};
 			return std::find(AllowedFields.begin(), AllowedFields.end(), Field) !=
 				   AllowedFields.end();
 		}
 
-		inline bool HasOnlyAllowedSelfServiceFields(
-			const Poco::JSON::Object::Ptr &RawObject) {
+		inline bool HasOnlyAllowedSelfServiceFields(const Poco::JSON::Object::Ptr &RawObject) {
 			for (const auto &Entry : *RawObject) {
 				if (!IsAllowedSelfServiceField(Entry.first)) {
 					return false;
@@ -53,8 +56,8 @@ namespace OpenWifi {
 			return true;
 		}
 
-		bool HandleResetMFA(const SecurityObjects::UserInfoAndPolicy &Caller,
-							const std::string &Id, SecurityObjects::UserInfo &Existing,
+		bool HandleResetMFA(const SecurityObjects::UserInfoAndPolicy &Caller, const std::string &Id,
+							SecurityObjects::UserInfo &Existing,
 							Poco::JSON::Object &ModifiedObject) {
 			Existing.userTypeProprietaryInfo.mfa.enabled = false;
 			Existing.userTypeProprietaryInfo.mfa.method.clear();
@@ -66,7 +69,7 @@ namespace OpenWifi {
 										  .note = "MFA Reset by " + Caller.userinfo.email});
 			auto UpdateId = Id;
 			if (!StorageService()->UserDB().UpdateUserInfo(Caller.userinfo.email, UpdateId,
-														  Existing)) {
+														   Existing)) {
 				return false;
 			}
 			SecurityObjects::UserInfo NewUserInfo;
@@ -81,8 +84,8 @@ namespace OpenWifi {
 		bool HandleForgotPassword(Poco::Logger &Log, const std::string &CallerAddress,
 								  SecurityObjects::UserInfo &Existing) {
 			Existing.changePassword = true;
-			Log.information(fmt::format("FORGOTTEN-PASSWORD({}): Request for {}",
-										CallerAddress, Existing.email));
+			Log.information(fmt::format("FORGOTTEN-PASSWORD({}): Request for {}", CallerAddress,
+										Existing.email));
 
 			SecurityObjects::ActionLink NewLink;
 			NewLink.action = OpenWifi::SecurityObjects::LinkActions::FORGOT_PASSWORD;
@@ -153,8 +156,9 @@ namespace OpenWifi {
 				return;
 			}
 
-			SecurityObjects::NoteInfoVec NIV = RESTAPI_utils::to_object_array<SecurityObjects::NoteInfo>(
-				RawObject->get("notes").toString());
+			SecurityObjects::NoteInfoVec NIV =
+				RESTAPI_utils::to_object_array<SecurityObjects::NoteInfo>(
+					RawObject->get("notes").toString());
 			for (const auto &i : NIV) {
 				SecurityObjects::NoteInfo ii{.created = (uint64_t)OpenWifi::Now(),
 											 .createdBy = Caller.userinfo.email,
@@ -179,8 +183,8 @@ namespace OpenWifi {
 		}
 
 		MfaUpdateStatus ApplyMfaChange(const SecurityObjects::UserInfoAndPolicy &Caller,
-									   const SecurityObjects::UserInfo &NewUser,
-									   bool HasMfaUpdate, SecurityObjects::UserInfo &Existing) {
+									   const SecurityObjects::UserInfo &NewUser, bool HasMfaUpdate,
+									   SecurityObjects::UserInfo &Existing) {
 			if (!HasMfaUpdate) {
 				return MfaUpdateStatus::Applied;
 			}
@@ -254,7 +258,7 @@ namespace OpenWifi {
 			NewUserInfo.to_json(ModifiedObject);
 			return true;
 		}
-	}
+	} // namespace
 
 	void RESTAPI_user_handler::DoGet() {
 
@@ -264,9 +268,14 @@ namespace OpenWifi {
 		}
 
 		Poco::toLowerInPlace(Id);
-		std::string Arg;
 		SecurityObjects::UserInfo UInfo;
-		if (HasParameter("byEmail", Arg) && Arg == "true") {
+		bool byEmail = false;
+		std::string byEmailVal;
+		if (HasParameter("byEmail", byEmailVal)) {
+			byEmail = is_bool(byEmailVal) ? GetBoolParameter("byEmail")
+										  : (byEmailVal.empty() || byEmailVal == "true");
+		}
+		if (byEmail) {
 			if (!StorageService()->UserDB().GetUserByEmail(Id, UInfo)) {
 				return NotFound();
 			}
@@ -298,6 +307,16 @@ namespace OpenWifi {
 
 		if (!ACLProcessor::CanDeleteUserRecord(UserInfo_.userinfo, UInfo)) {
 			return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
+		}
+
+		if (UInfo.userRole == SecurityObjects::ROOT || UInfo.userRole == SecurityObjects::ADMIN) {
+			if (StorageService()->UserDB().Count(fmt::format("createdBy='{}'", Id)) > 0 ||
+				StorageService()->SubDB().Count(fmt::format("createdBy='{}'", Id)) > 0) {
+				Logger_.warning(fmt::format("Cannot delete user '{}': it is still referenced in "
+											"'createdBy' of one or more users/subusers.",
+											Id));
+				return BadRequest(RESTAPI::Errors::StillInUse);
+			}
 		}
 
 		if (!StorageService()->UserDB().DeleteUser(UserInfo_.userinfo.email, Id)) {
@@ -352,6 +371,13 @@ namespace OpenWifi {
 			return BadRequest(RESTAPI::Errors::UserAlreadyExists);
 		}
 
+		bool email_verification = true;
+		RESTAPI_utils::field_from_json(RawObject, "emailValidation", email_verification);
+		std::string emailVal;
+		if (HasParameter("email_verification", emailVal)) {
+			email_verification = (emailVal != "false");
+		}
+
 		if (!NewUser.currentPassword.empty()) {
 			if (!AuthService()->ValidatePassword(NewUser.currentPassword)) {
 				return BadRequest(RESTAPI::Errors::InvalidPassword);
@@ -372,8 +398,7 @@ namespace OpenWifi {
 			Logger_.information(fmt::format("Could not add user '{}'.", NewUser.email));
 			return BadRequest(RESTAPI::Errors::RecordNotCreated);
 		}
-
-		if (GetParameter("email_verification", "") == "true") {
+		if (email_verification) {
 			if (AuthService::VerifyEmail(NewUser))
 				Logger_.information(
 					fmt::format("Verification e-mail requested for {}", NewUser.email));
@@ -410,7 +435,13 @@ namespace OpenWifi {
 			return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
 		}
 
-		if (GetParameter("resetMFA", "") == "true") {
+		bool resetMFA = false;
+		std::string resetMfaVal;
+		if (HasParameter("resetMFA", resetMfaVal)) {
+			resetMFA = is_bool(resetMfaVal) ? GetBoolParameter("resetMFA")
+											: (resetMfaVal.empty() || resetMfaVal == "true");
+		}
+		if (resetMFA) {
 			if (!ACLProcessor::CanResetUserMFA(UserInfo_.userinfo, Existing)) {
 				return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
 			}
@@ -422,7 +453,13 @@ namespace OpenWifi {
 			return ReturnObject(ModifiedObject);
 		}
 
-		if (GetParameter("forgotPassword", "") == "true") {
+		bool forgotPassword = false;
+		std::string forgotVal;
+		if (HasParameter("forgotPassword", forgotVal)) {
+			forgotPassword = is_bool(forgotVal) ? GetBoolParameter("forgotPassword")
+												: (forgotVal.empty() || forgotVal == "true");
+		}
+		if (forgotPassword) {
 			HandleForgotPassword(Logger(), Request->clientAddress().toString(), Existing);
 			return OK();
 		}
@@ -461,7 +498,12 @@ namespace OpenWifi {
 			break;
 		}
 
-		if (GetParameter("email_verification", "") == "true") {
+		bool email_verification = true;
+		std::string emailVal;
+		if (HasParameter("email_verification", emailVal)) {
+			email_verification = (emailVal != "false");
+		}
+		if (email_verification) {
 			if (AuthService::VerifyEmail(Existing))
 				Logger_.information(
 					fmt::format("Verification e-mail requested for {}", Existing.email));

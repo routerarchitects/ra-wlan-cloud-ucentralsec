@@ -24,9 +24,14 @@ namespace OpenWifi {
 		}
 
 		Poco::toLowerInPlace(Id);
-		std::string Arg;
 		SecurityObjects::UserInfo UInfo;
-		if (HasParameter("byEmail", Arg) && Arg == "true") {
+		bool byEmail = false;
+		std::string byEmailVal;
+		if (HasParameter("byEmail", byEmailVal)) {
+			byEmail = is_bool(byEmailVal) ? GetBoolParameter("byEmail")
+										  : (byEmailVal.empty() || byEmailVal == "true");
+		}
+		if (byEmail) {
 			if (!StorageService()->SubDB().GetUserByEmail(Id, UInfo)) {
 				return NotFound();
 			}
@@ -105,6 +110,13 @@ namespace OpenWifi {
 			return BadRequest(RESTAPI::Errors::InvalidEmailAddress);
 		}
 
+		bool email_verification = true;
+		RESTAPI_utils::field_from_json(RawObject, "emailValidation", email_verification);
+		std::string emailVal;
+		if (HasParameter("email_verification", emailVal)) {
+			email_verification = (emailVal != "false");
+		}
+
 		if (!NewUser.currentPassword.empty()) {
 			if (!AuthService()->ValidateSubPassword(NewUser.currentPassword)) {
 				return BadRequest(RESTAPI::Errors::InvalidPassword);
@@ -124,8 +136,7 @@ namespace OpenWifi {
 			Logger_.information(fmt::format("Could not add user '{}'.", NewUser.email));
 			return BadRequest(RESTAPI::Errors::RecordNotCreated);
 		}
-
-		if (GetParameter("email_verification", "false") == "true") {
+		if (email_verification) {
 			if (AuthService::VerifySubEmail(NewUser))
 				Logger_.information(
 					fmt::format("Verification e-mail requested for {}", NewUser.email));
@@ -160,7 +171,13 @@ namespace OpenWifi {
 			return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
 		}
 
-		if (GetBoolParameter("resetMFA")) {
+		bool resetMFA = false;
+		std::string resetMfaVal;
+		if (HasParameter("resetMFA", resetMfaVal)) {
+			resetMFA = is_bool(resetMfaVal) ? GetBoolParameter("resetMFA")
+											: (resetMfaVal.empty() || resetMfaVal == "true");
+		}
+		if (resetMFA) {
 			if ((UserInfo_.userinfo.userRole == SecurityObjects::ROOT) ||
 				(UserInfo_.userinfo.userRole == SecurityObjects::ADMIN &&
 				 Existing.userRole != SecurityObjects::ROOT) ||
@@ -185,7 +202,19 @@ namespace OpenWifi {
 			}
 		}
 
-		if (GetBoolParameter("forgotPassword") || GetBoolParameter("resetPassword")) {
+		bool forgotPassword = false;
+		std::string forgotVal;
+		if (HasParameter("forgotPassword", forgotVal)) {
+			forgotPassword = is_bool(forgotVal) ? GetBoolParameter("forgotPassword")
+												: (forgotVal.empty() || forgotVal == "true");
+		}
+		bool resetPassword = false;
+		std::string resetVal;
+		if (HasParameter("resetPassword", resetVal)) {
+			resetPassword = is_bool(resetVal) ? GetBoolParameter("resetPassword")
+											  : (resetVal.empty() || resetVal == "true");
+		}
+		if (forgotPassword || resetPassword) {
 			Existing.changePassword = true;
 			Logger_.information(fmt::format("FORGOTTEN-PASSWORD({}): Request for {}",
 											Request->clientAddress().toString(), Existing.email));
@@ -263,7 +292,12 @@ namespace OpenWifi {
 			}
 		}
 
-		if (GetParameter("email_verification", "false") == "true") {
+		bool email_verification = true;
+		std::string emailVal;
+		if (HasParameter("email_verification", emailVal)) {
+			email_verification = (emailVal != "false");
+		}
+		if (email_verification) {
 			if (AuthService::VerifySubEmail(Existing))
 				Logger_.information(
 					fmt::format("Verification e-mail requested for {}", Existing.email));
