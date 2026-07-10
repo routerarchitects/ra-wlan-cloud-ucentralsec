@@ -172,7 +172,13 @@ namespace OpenWifi {
 			return UnAuthorized(RESTAPI::Errors::ACCESS_DENIED);
 		}
 
-		if (GetBoolParameter("resetMFA")) {
+		bool resetMFA = false;
+		std::string resetMfaVal;
+		if (HasParameter("resetMFA", resetMfaVal)) {
+			resetMFA = is_bool(resetMfaVal) ? GetBoolParameter("resetMFA")
+											: (resetMfaVal.empty() || resetMfaVal == "true");
+		}
+		if (resetMFA) {
 			if ((UserInfo_.userinfo.userRole == SecurityObjects::ROOT) ||
 				(UserInfo_.userinfo.userRole == SecurityObjects::ADMIN &&
 				 Existing.userRole != SecurityObjects::ROOT) ||
@@ -197,7 +203,19 @@ namespace OpenWifi {
 			}
 		}
 
-		if (GetBoolParameter("forgotPassword") || GetBoolParameter("resetPassword")) {
+		bool forgotPassword = false;
+		std::string forgotVal;
+		if (HasParameter("forgotPassword", forgotVal)) {
+			forgotPassword = is_bool(forgotVal) ? GetBoolParameter("forgotPassword")
+												: (forgotVal.empty() || forgotVal == "true");
+		}
+		bool resetPassword = false;
+		std::string resetVal;
+		if (HasParameter("resetPassword", resetVal)) {
+			resetPassword = is_bool(resetVal) ? GetBoolParameter("resetPassword")
+											  : (resetVal.empty() || resetVal == "true");
+		}
+		if (forgotPassword || resetPassword) {
 			Existing.changePassword = true;
 			Logger_.information(fmt::format("FORGOTTEN-PASSWORD({}): Request for {}",
 											Request->clientAddress().toString(), Existing.email));
@@ -275,7 +293,7 @@ namespace OpenWifi {
 			}
 		}
 
-		bool email_verification = false;
+		bool email_verification = true;
 		std::string emailVal;
 		if (HasParameter("email_verification", emailVal)) {
 			email_verification = is_bool(emailVal) ? GetBoolParameter("email_verification")

@@ -168,7 +168,7 @@ var rootTestCases = []IntegrationTestCase{
 		Name:           "Root Changes User Role",
 		Actor:          "root",
 		Method:         "PUT",
-		Path:           "/api/v1/user/{rootRoleChangeUserID}",
+		Path:           "/api/v1/user/{rootRoleChangeUserID}?email_verification=false",
 		Body:           `{"userRole":"installer"}`,
 		ExpectedStatus: "200",
 		Assert: func(t *testing.T, resp *apiResponse, ctx *TestContext) {
@@ -335,7 +335,7 @@ var adminTestCases = []IntegrationTestCase{
 		Name:           "Admin A Can Change Created CSR Role to Installer",
 		Actor:          "adminA",
 		Method:         "PUT",
-		Path:           "/api/v1/user/{csrAID}",
+		Path:           "/api/v1/user/{csrAID}?email_verification=false",
 		Body:           `{"userRole":"installer"}`,
 		ExpectedStatus: "200",
 		Assert: func(t *testing.T, resp *apiResponse, ctx *TestContext) {
@@ -355,7 +355,7 @@ var adminTestCases = []IntegrationTestCase{
 		Name:           "Admin A Cannot Overwrite createdBy",
 		Actor:          "adminA",
 		Method:         "PUT",
-		Path:           "/api/v1/user/{csrAID}",
+		Path:           "/api/v1/user/{csrAID}?email_verification=false",
 		Body:           `{"createdBy":"{adminBID}","name":"TC_ADMIN_13: Updated CSR A"}`,
 		ExpectedStatus: "200",
 		Assert: func(t *testing.T, resp *apiResponse, ctx *TestContext) {
@@ -579,7 +579,7 @@ var csrTestCases = []IntegrationTestCase{
 		Name:           "CSR A Updates Own Profile",
 		Actor:          "csrA",
 		Method:         "PUT",
-		Path:           "/api/v1/user/{csrAID}",
+		Path:           "/api/v1/user/{csrAID}?email_verification=false",
 		Body:           `{"name":"TC_CSR_03: CSR A Updated","description":"TC_CSR_03: Updated description","location":"TC_CSR_03: Updated location","locale":"en_US"}`,
 		ExpectedStatus: "200",
 		Assert: func(t *testing.T, resp *apiResponse, ctx *TestContext) {
@@ -610,7 +610,7 @@ var csrTestCases = []IntegrationTestCase{
 		Name:           "CSR A Changes Own Password",
 		Actor:          "csrA",
 		Method:         "PUT",
-		Path:           "/api/v1/user/{csrAID}",
+		Path:           "/api/v1/user/{csrAID}?email_verification=false",
 		Body:           `{"changePassword":true,"currentPassword":"{emails.updatedPassword}"}`,
 		ExpectedStatus: "200",
 		Assert: func(t *testing.T, resp *apiResponse, ctx *TestContext) {
@@ -641,7 +641,7 @@ var csrTestCases = []IntegrationTestCase{
 		Name:           "CSR A Enables Own MFA Email",
 		Actor:          "csrA",
 		Method:         "PUT",
-		Path:           "/api/v1/user/{csrAID}",
+		Path:           "/api/v1/user/{csrAID}?email_verification=false",
 		Body:           `{"userTypeProprietaryInfo":{"mfa":{"enabled":true,"method":"email"}}}`,
 		ExpectedStatus: "200",
 		Assert: func(t *testing.T, resp *apiResponse, ctx *TestContext) {

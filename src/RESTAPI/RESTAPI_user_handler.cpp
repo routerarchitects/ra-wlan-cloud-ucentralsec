@@ -499,7 +499,7 @@ namespace OpenWifi {
 			break;
 		}
 
-		bool email_verification = false;
+		bool email_verification = true;
 		std::string emailVal;
 		if (HasParameter("email_verification", emailVal)) {
 			email_verification = is_bool(emailVal) ? GetBoolParameter("email_verification")
