@@ -114,8 +114,7 @@ namespace OpenWifi {
 		RESTAPI_utils::field_from_json(RawObject, "emailValidation", email_verification);
 		std::string emailVal;
 		if (HasParameter("email_verification", emailVal)) {
-			email_verification = is_bool(emailVal) ? GetBoolParameter("email_verification")
-												   : (emailVal.empty() || emailVal == "true");
+			email_verification = (emailVal != "false");
 		}
 
 		if (!NewUser.currentPassword.empty()) {
@@ -296,8 +295,7 @@ namespace OpenWifi {
 		bool email_verification = true;
 		std::string emailVal;
 		if (HasParameter("email_verification", emailVal)) {
-			email_verification = is_bool(emailVal) ? GetBoolParameter("email_verification")
-												   : (emailVal.empty() || emailVal == "true");
+			email_verification = (emailVal != "false");
 		}
 		if (email_verification) {
 			if (AuthService::VerifySubEmail(Existing))
