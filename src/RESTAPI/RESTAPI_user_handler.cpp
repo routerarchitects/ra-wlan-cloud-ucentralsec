@@ -107,7 +107,8 @@ namespace OpenWifi {
 		void ApplyOwnerUpdate(const SecurityObjects::UserInfoAndPolicy &Caller,
 							  const Poco::JSON::Object::Ptr &RawObject,
 							  SecurityObjects::UserInfo &Existing) {
-			if (RawObject->has("owner") && Caller.userinfo.userRole == SecurityObjects::ROOT &&
+			if (RawObject->has("owner") &&
+				(Caller.userinfo.userRole == SecurityObjects::ROOT || Caller.userinfo.userRole == SecurityObjects::ADMIN) &&
 				Existing.owner.empty()) {
 				RESTAPIHandler::AssignIfPresent(RawObject, "owner", Existing.owner);
 			}
@@ -332,7 +333,7 @@ namespace OpenWifi {
 		}
 
 		NewUser.createdBy = UserInfo_.userinfo.id;
-		if (UserInfo_.userinfo.userRole == SecurityObjects::ROOT) {
+		if (UserInfo_.userinfo.userRole == SecurityObjects::ROOT || UserInfo_.userinfo.userRole == SecurityObjects::ADMIN) {
 			NewUser.owner = GetParameter("entity", "");
 		} else {
 			NewUser.owner = UserInfo_.userinfo.owner;
