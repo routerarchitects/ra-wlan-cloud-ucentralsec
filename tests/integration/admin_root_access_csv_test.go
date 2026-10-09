@@ -235,15 +235,26 @@ func cleanupUsers(t *testing.T, client *apiClient, vars map[string]string, creat
 	}
 }
 
+func getInternalAuthEnv() (string, string) {
+	name := strings.TrimSpace(os.Getenv("OWSEC_INTERNAL_NAME"))
+	if name == "" {
+		name = strings.TrimSpace(os.Getenv("X_INTERNAL_NAME"))
+	}
+	key := strings.TrimSpace(os.Getenv("OWSEC_INTERNAL_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("X_API_KEY"))
+	}
+	return name, key
+}
+
 func verifyInternalUserRoutes(httpClient *http.Client, internalBaseURL, rootID string) error {
 	if strings.TrimSpace(rootID) == "" {
 		return fmt.Errorf("rootID is required for internal route verification")
 	}
 
-	internalName := strings.TrimSpace(os.Getenv("X_INTERNAL_NAME"))
-	internalAPIKey := strings.TrimSpace(os.Getenv("X_API_KEY"))
+	internalName, internalAPIKey := getInternalAuthEnv()
 	if internalName == "" || internalAPIKey == "" {
-		return nil
+		return fmt.Errorf("internal authentication requires OWSEC_INTERNAL_NAME (or X_INTERNAL_NAME) and OWSEC_INTERNAL_API_KEY (or X_API_KEY)")
 	}
 
 	internalClient := newAPIClient(strings.TrimSuffix(internalBaseURL, "/api/v1"), httpClient)
@@ -320,17 +331,30 @@ func verifyInternalUserRoutes(httpClient *http.Client, internalBaseURL, rootID s
 			unregisteredSvcResp.StatusCode, string(unregisteredSvcResp.Body))
 	}
 
-	// 5. Negative Internal Auth Check: Valid API Key + owprov Public Endpoint (Private Endpoint Only Hardening)
+	// 5. Positive Internal Auth Check: Valid API Key + owprov Public Endpoint (Both private and public endpoints accepted)
 	publicEndpointResp, err := internalClient.doWithHeaders("", http.MethodGet, "/api/v1/user/"+url.PathEscape(rootID), "", map[string]string{
-		"X-INTERNAL-NAME": "https://localhost:16005", // owprov public endpoint (not private endpoint)
+		"X-INTERNAL-NAME": "https://localhost:16005", // owprov public endpoint
 		"X-API-KEY":       internalAPIKey,
 	})
 	if err != nil {
-		return fmt.Errorf("negative internal request (owprov public endpoint) failed: %w", err)
+		return fmt.Errorf("positive internal request (owprov public endpoint) failed: %w", err)
 	}
-	if !statusMatches("401|403", publicEndpointResp.StatusCode) {
-		return fmt.Errorf("negative internal request (owprov public endpoint) expected 401/403 access denied, got %d. Body: %s",
+	if !statusMatches("200", publicEndpointResp.StatusCode) {
+		return fmt.Errorf("positive internal request (owprov public endpoint) expected 200, got %d. Body: %s",
 			publicEndpointResp.StatusCode, string(publicEndpointResp.Body))
+	}
+
+	// 5b. Negative Internal Auth Check: Valid API Key + owfms Public Endpoint
+	unauthPublicResp, err := internalClient.doWithHeaders("", http.MethodGet, "/api/v1/user/"+url.PathEscape(rootID), "", map[string]string{
+		"X-INTERNAL-NAME": "https://localhost:16004", // public endpoint of registered owfms service (not owprov)
+		"X-API-KEY":       internalAPIKey,
+	})
+	if err != nil {
+		return fmt.Errorf("negative internal request (owfms public endpoint) failed: %w", err)
+	}
+	if !statusMatches("401|403", unauthPublicResp.StatusCode) {
+		return fmt.Errorf("negative internal request (owfms public endpoint) expected 401/403 access denied, got %d. Body: %s",
+			unauthPublicResp.StatusCode, string(unauthPublicResp.Body))
 	}
 
 	// 6. Negative Internal Auth Check: Non-GET HTTP Methods (POST, PUT, DELETE) on Internal User Routes
@@ -396,11 +420,10 @@ func sanitizeSubtestName(s string) string {
 // as well as internal /api/v1/users RBAC against a live ucentralsec C++ daemon instance.
 func TestInternalUserRoutesLive(t *testing.T) {
 	internalBaseURL := strings.TrimSpace(os.Getenv("OWSEC_INTERNAL_BASE_URL"))
-	internalName := strings.TrimSpace(os.Getenv("X_INTERNAL_NAME"))
-	internalAPIKey := strings.TrimSpace(os.Getenv("X_API_KEY"))
+	internalName, internalAPIKey := getInternalAuthEnv()
 
 	if internalBaseURL == "" || internalName == "" || internalAPIKey == "" {
-		t.Fatalf("Live daemon verification failed: OWSEC_INTERNAL_BASE_URL, X_INTERNAL_NAME, and X_API_KEY environment variables are required.")
+		t.Fatalf("Live daemon verification failed: OWSEC_INTERNAL_BASE_URL, OWSEC_INTERNAL_NAME (or X_INTERNAL_NAME), and OWSEC_INTERNAL_API_KEY (or X_API_KEY) environment variables are required.")
 	}
 
 	tlsRootCA := os.Getenv("OW_RBAC_TLS_ROOT_CA")
